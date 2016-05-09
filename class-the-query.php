@@ -41,52 +41,84 @@ if ( ! class_exists( 'The_Query' ) ) {
 		 */
 		public $queries = array();
 
-		/**
-		 * Get a cached Query.
-		 */
 		function __construct() {
 			// Doing nothing is better than being busy doing nothing. – Lao Tzu
 		}
 
-		/**
-		 * Get a Query
-		 * @param  string $query_name The assigned query name.
-		 * @return object             WP_Query.
-		 */
-		public function get_query( $query_name ) {
-			if ( isset( $this->queries[ $query_name ] ) ) {
-				if ( is_object( $this->queries[ $query_name ] ) ) {
-					// We've queried the args, so this is already a WP_Query.
-					return $this->queries[ $query_name ];
-				} else {
-					// Query the args and cache the Query.
-					$this->queries[ $query_name ] = new WP_Query( $this->queries[ $query_name ] );
+		public function get_query( $query_name_or_args, $query_name = false ) {
 
-					// Here's the query.
-					return $this->queries[ $query_name ];
+				/*
+				 * We asked for the query by name, but nothing is set.
+				 *
+				 *     the_query( 'query_name' );
+				 *
+				 */
+				if ( is_string( $query_name_or_args ) && ! isset( $this->queries[ $query_name_or_args ] ) ) {
+
+					// Return an error.
+					return new WP_Error( 'the_query_bad_query_name', __( 'Sorry, but this query does not exists', 'the-query' ) );
+
+				/*
+				 * We passed arguments for a new query, and a name, so let's store those arguments since they don't exists.
+				 *
+				 *     the_query( array(), 'query_name' );
+				 *
+				 */
+				} else if ( is_array( $query_name_or_args ) && is_string( $query_name ) && ! isset( $this->queries[ $query_name_or_args ] ) ) {
+
+					// Cache the arguments.
+					$this->cache_query( $query_name, $query_name_or_args );
+
+				/*
+				 * We just passed a name, and the query or the args already exist in the cache.
+				 *
+				 *     the_query( 'query_name' );
+				 *
+				 */
+				} else if ( is_string( $query_name_or_args ) && isset( $this->queries[ $query_name_or_args ] ) ) {
+
+					// Looks like this was already converted to a query.
+					if ( is_object( $this->queries[ $query_name_or_args ] ) ) {
+						return $this->queries[ $query_name_or_args ];
+
+					// They are just args at the moment, let's make it a query.
+					} else if ( is_array( $this->queries[ $query_name_or_args ] ) ) {
+
+						// Set the cache to the actual query and also return it to the user.
+						return $this->cache_query( $query_name, new WP_Query( $this->queries[ $query_name_or_args ] ) );
+					}
+
+				/*
+				 * We passed only arguments, and no name, let's try and find the query or make a new one and give it a name.
+				 *
+				 *     the_query( array() );
+				 *
+				 */
+				} else if ( is_array( $query_name_or_args ) && ! $query_name ) {
+					foreach ( $this->queries as $query_args_or_wp_query ) {
+
+						// The arguments match the one's in the cache, so let's convert that to a WP_Query and return it.
+						if ( is_array( $query_args_or_wp_query ) && $query_args_or_wp_query == $query_name_or_args ) {
+							return $this->cache_query( $query_name, new WP_Query( $this->queries[ $query_name_or_args ] ) );
+
+						// This one is already and WP_Query, so we have to create WP_Query to compare.
+						} else if ( is_object( $query_args_or_wp_query ) ) {
+							$wp_query = new WP_Query( $query_name_or_args );
+
+							// The query is the same, so return a new query.
+							if ( $wp_query === $query_args_or_wp_query ) {
+								return $wp_query.
+							}
+						}
+					}
 				}
-			} else {
-				return new WP_Error( 'bad_query_name', sprintf( __( 'Sorry, but the query %s does not exist.', 'clp' ), "<em>{$query_name}</em>" ) );
-			}
 		}
 
-		/**
-		 * Cache a Query.
-		 *
-		 * @param  string $query_name   Name of query.
-		 * @param  array $args          WP_Query arguments.
-		 */
-		public function cache_query( $query_name, $args ) {
-			$this->queries[ $query_name ] = $args;
+		public function cache_query( $query_name, $args_or_wp_query ) {
+			return $this->queries[ $query_name ] = $args_or_wp_query;
 		}
 	} // The_Query (class).
 
-	/**
-	 * Access The_Query or Get a Cached Query.
-	 *
-	 * @return object WP_Query object if query name is supplied,
-	 *                or the instance of The_Query.
-	 */
 	function the_query( $query_name = false ) {
 		if ( $query_name ) {
 			return The_Query::get_instance()->get_query( $query_name );
@@ -96,16 +128,7 @@ if ( ! class_exists( 'The_Query' ) ) {
 		}
 	}
 
-	/**
-	 * Register a Query.
-	 *
-	 * Creates a new WP_Query and caches it in our cache so
-	 * you can access it later using the_query( 'my-query' ).
-	 *
-	 * @param  string $query_name The name of your query.
-	 * @param  array $args WP_Query arguments.
-	 */
 	function the_register_query( $query_name, $args ) {
-		the_query()->cache_query( $query_name, $args );
+		return the_query()->cache_query( $query_name, $args );
 	}
 } // if class exists.
